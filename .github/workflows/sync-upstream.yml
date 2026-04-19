@@ -36,6 +36,12 @@ jobs:
       - name: Sync main with upstream
         run: |
           git checkout main
-          git merge --ff-only upstream/main
+          # Try fast-forward first; if diverged, rebase local commits on top of upstream
+          if git merge --ff-only upstream/main 2>/dev/null; then
+            echo "Fast-forward merge succeeded."
+          else
+            echo "Branches diverged, rebasing local commits onto upstream/main..."
+            git rebase upstream/main
+          fi
           git submodule update --init --recursive
           git push origin main
