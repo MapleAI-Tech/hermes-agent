@@ -34,6 +34,7 @@ jobs:
           git fetch upstream --tags
 
       - name: Sync main with upstream
+        id: sync_main
         run: |
           git checkout main
           if git merge --ff-only upstream/main 2>/dev/null; then
@@ -44,4 +45,27 @@ jobs:
           fi
           git submodule update --init --recursive
           git push origin main
+        shell: bash {0}
+
+      - name: Sync tags from upstream
+        run: |
+          # Collect upstream tag names and re-point them to our main HEAD
+          TAGS=$(git tag -l --sort=-creatordate)
+          if [ -z "$TAGS" ]; then
+            echo "No upstream tags found, skipping."
+            exit 0
+          fi
+
+          SYNCED=0
+          for tag in $TAGS; do
+            # Delete local tag if it already exists
+            git tag -d "$tag" 2>/dev/null || true
+            # Create tag with same name pointing to our main HEAD
+            git tag "$tag" main
+            SYNCED=$((SYNCED + 1))
+          done
+
+          echo "Re-pointed $SYNCED tags to fork main HEAD."
+          # Force push all tags (handles new + updated)
+          git push origin --tags --force
         shell: bash {0}
