@@ -30,7 +30,7 @@ jobs:
 
       - name: Add upstream remote
         run: |
-          git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git 2>/dev/null || true
           git fetch upstream --tags
 
       - name: Sync main with upstream
