@@ -49,8 +49,11 @@ jobs:
 
       - name: Sync tags from upstream
         run: |
+          # Remove all existing tags on origin (from previous runs)
+          git push origin --delete $(git tag -l) 2>/dev/null || true
+
           # Push all upstream tags as-is (historical versions)
-          git push origin --tags 2>/dev/null || true
+          git push origin --tags
 
           # Find the latest upstream tag and re-point it to our main HEAD
           LATEST_TAG=$(git tag -l --sort=-creatordate | head -1)
