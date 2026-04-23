@@ -49,23 +49,15 @@ jobs:
 
       - name: Sync tags from upstream
         run: |
-          # Collect upstream tag names and re-point them to our main HEAD
-          TAGS=$(git tag -l --sort=-creatordate)
-          if [ -z "$TAGS" ]; then
-            echo "No upstream tags found, skipping."
-            exit 0
+          # Push all upstream tags as-is (historical versions)
+          git push origin --tags 2>/dev/null || true
+
+          # Find the latest upstream tag and re-point it to our main HEAD
+          LATEST_TAG=$(git tag -l --sort=-creatordate | head -1)
+          if [ -n "$LATEST_TAG" ]; then
+            git tag -d "$LATEST_TAG" 2>/dev/null || true
+            git tag "$LATEST_TAG" main
+            git push origin "$LATEST_TAG" --force
+            echo "Re-pointed latest tag '$LATEST_TAG' to fork main HEAD."
           fi
-
-          SYNCED=0
-          for tag in $TAGS; do
-            # Delete local tag if it already exists
-            git tag -d "$tag" 2>/dev/null || true
-            # Create tag with same name pointing to our main HEAD
-            git tag "$tag" main
-            SYNCED=$((SYNCED + 1))
-          done
-
-          echo "Re-pointed $SYNCED tags to fork main HEAD."
-          # Force push all tags (handles new + updated)
-          git push origin --tags --force
         shell: bash {0}
