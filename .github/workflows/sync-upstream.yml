@@ -32,6 +32,8 @@ jobs:
         run: |
           git remote remove upstream 2>/dev/null || true
           git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          # Delete stale local tags before fetching to avoid clobber conflicts
+          git tag -l | xargs -r git tag -d
           git fetch upstream --tags
         shell: bash {0}
 
