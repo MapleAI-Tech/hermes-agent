@@ -32,9 +32,7 @@ jobs:
         run: |
           git remote remove upstream 2>/dev/null || true
           git remote add upstream https://github.com/NousResearch/hermes-agent.git
-          # Delete stale local tags before fetching to avoid clobber conflicts
-          git tag -l | xargs -r git tag -d
-          git fetch upstream --tags
+          git fetch upstream main:refs/remotes/upstream/main
         shell: bash {0}
 
       - name: Sync main with upstream
@@ -44,27 +42,29 @@ jobs:
           if git merge --ff-only upstream/main 2>/dev/null; then
             echo "Fast-forward merge succeeded."
           else
-            echo "Branches diverged, rebasing local commits onto upstream/main..."
-            git rebase upstream/main
+            echo "Branches diverged, merging upstream/main to preserve fork commits..."
+            git merge --no-edit upstream/main
           fi
           git submodule update --init --recursive
           git push origin main
         shell: bash {0}
 
-      - name: Sync tags from upstream
+      - name: Create MapleAI build tag
         run: |
-          # Remove all existing tags on origin (from previous runs)
-          git push origin --delete $(git tag -l) 2>/dev/null || true
-
-          # Push all upstream tags as-is (historical versions)
-          git push origin --tags
-
-          # Find the latest upstream tag and re-point it to our main HEAD
-          LATEST_TAG=$(git tag -l --sort=-creatordate | head -1)
-          if [ -n "$LATEST_TAG" ]; then
-            git tag -d "$LATEST_TAG" 2>/dev/null || true
-            git tag "$LATEST_TAG" main
-            git push origin "$LATEST_TAG" --force
-            echo "Re-pointed latest tag '$LATEST_TAG' to fork main HEAD."
+          LATEST_UPSTREAM_TAG=$(git ls-remote --tags --refs upstream 'v*' | awk -F/ '{print $NF}' | sort -V | tail -1)
+          if [ -z "$LATEST_UPSTREAM_TAG" ]; then
+            echo "No upstream release tag found."
+            exit 1
           fi
+
+          MAPLEAI_TAG="mapleai-${LATEST_UPSTREAM_TAG}"
+          echo "Creating MapleAI build tag: ${MAPLEAI_TAG}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${MAPLEAI_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${MAPLEAI_TAG} already exists on origin; leaving it unchanged."
+            exit 0
+          fi
+
+          git tag "$MAPLEAI_TAG" HEAD
+          git push origin "$MAPLEAI_TAG"
         shell: bash {0}
