@@ -39,14 +39,22 @@ jobs:
         id: sync_main
         run: |
           git checkout main
-          if git merge --ff-only upstream/main 2>/dev/null; then
-            echo "Fast-forward merge succeeded."
+          FORK_HEAD=$(git rev-parse HEAD)
+          if git merge --no-ff --no-commit -X ours upstream/main; then
+            git restore --source="$FORK_HEAD" --staged --worktree .github/workflows
+            if git diff --cached --quiet; then
+              echo "No non-workflow upstream changes to sync."
+              git merge --abort || true
+            else
+              git commit -m "Merge upstream main"
+              git submodule update --init --recursive
+              git push origin main
+            fi
           else
-            echo "Branches diverged, merging upstream/main to preserve fork commits..."
-            git merge --no-edit upstream/main
+            echo "Upstream merge failed. Resolve conflicts manually."
+            git status --short
+            exit 1
           fi
-          git submodule update --init --recursive
-          git push origin main
         shell: bash {0}
 
       - name: Create MapleAI build tag
