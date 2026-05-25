@@ -40,20 +40,27 @@ jobs:
         run: |
           git checkout main
           FORK_HEAD=$(git rev-parse HEAD)
-          if git merge --no-ff --no-commit -X ours upstream/main; then
+          MERGE_STATUS=0
+          git merge --no-ff --no-commit -X ours upstream/main || MERGE_STATUS=$?
+
+          if [ "$MERGE_STATUS" -ne 0 ]; then
             git restore --source="$FORK_HEAD" --staged --worktree .github/workflows
-            if git diff --cached --quiet; then
-              echo "No non-workflow upstream changes to sync."
-              git merge --abort || true
-            else
-              git commit -m "Merge upstream main"
-              git submodule update --init --recursive
-              git push origin main
+            REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U)
+            if [ -n "$REMAINING_CONFLICTS" ]; then
+              echo "Upstream merge failed outside .github/workflows. Resolve conflicts manually."
+              git status --short
+              exit 1
             fi
+          fi
+
+          git restore --source="$FORK_HEAD" --staged --worktree .github/workflows
+          if git diff --cached --quiet; then
+            echo "No non-workflow upstream changes to sync."
+            git merge --abort || true
           else
-            echo "Upstream merge failed. Resolve conflicts manually."
-            git status --short
-            exit 1
+            git commit -m "Merge upstream main"
+            git submodule update --init --recursive
+            git push origin main
           fi
         shell: bash {0}
 
