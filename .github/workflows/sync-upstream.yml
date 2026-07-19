@@ -43,17 +43,23 @@ jobs:
           MERGE_STATUS=0
           git merge --no-ff --no-commit -X ours upstream/main || MERGE_STATUS=$?
 
-          if [ "$MERGE_STATUS" -ne 0 ]; then
-            git restore --source="$FORK_HEAD" --staged --worktree .github/workflows
-            REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U)
-            if [ -n "$REMAINING_CONFLICTS" ]; then
-              echo "Upstream merge failed outside .github/workflows. Resolve conflicts manually."
-              git status --short
-              exit 1
-            fi
+          # The fork owns .github/workflows outright; upstream workflow changes
+          # are never taken. Force the whole directory back to the fork's state.
+          # NOTE: `git restore --staged` cannot resolve modify/delete conflicts
+          # (it errors "path unmerged" and leaves them behind), so clear the
+          # index entries first, then re-populate from FORK_HEAD, then drop any
+          # upstream-only workflow files left in the worktree.
+          git rm -rf --cached --ignore-unmatch --quiet .github/workflows
+          git checkout "$FORK_HEAD" -- .github/workflows
+          git clean -fdq .github/workflows
+
+          REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U)
+          if [ -n "$REMAINING_CONFLICTS" ]; then
+            echo "Upstream merge produced conflicts outside .github/workflows. Resolve manually:"
+            git status --short
+            exit 1
           fi
 
-          git restore --source="$FORK_HEAD" --staged --worktree .github/workflows
           if git diff --cached --quiet; then
             echo "No non-workflow upstream changes to sync."
             git merge --abort || true
